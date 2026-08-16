@@ -1,0 +1,46 @@
+# PayFlow — stack rozhodnutí
+
+Účel projektu: 4denní příprava na technický pohovor (Comgate, PHP Developer – AI-first vývoj).
+Cíl není jen funkční app, ale schopnost obhájit každé rozhodnutí u pohovoru.
+
+## Framework a jazyk
+
+- **Laravel 10 + PHP 8.1** (composer.json), lokálně běží PHP 8.2.4 (splňuje `^8.1`).
+- Vědomě jsme nešli na Laravel 12 / PHP 8.3, i když by to bylo "modernější" — rozhodnutí padlo
+  kvůli časovému presu (4 dny) a tomu, že Laravel 10 idiomy jsou pořád plně relevantní pro pohovor.
+
+## Testování
+
+- **PHPUnit** (ne Pest) — skeleton default, formálnější standard.
+
+## Databáze
+
+- **SQL Server (sqlsrv)**, lokální instance uživatele, ne Postgres v Dockeru (původní plán).
+- PHP extensions `sqlsrv`/`pdo_sqlsrv` jsou už nainstalované lokálně.
+- Důsledek pro concurrency (Den 2 téma): SQL Server defaultně používá lock-based
+  READ COMMITTED (ne MVCC jako Postgres), pokud se nezapne READ_COMMITTED_SNAPSHOT.
+  `Eloquent::lockForUpdate()` funguje i tady — generuje `WITH (UPDLOCK, ROWLOCK)` místo Postgres `FOR UPDATE`.
+
+## Infrastruktura
+
+- **Bez Dockeru zatím** — priorita je obsah (payment domain, concurrency, AI copilot),
+  ne infra. Docker zůstává jako "umím to, ale záměrně jsem tady prioritizoval jinak" bod pro pohovor.
+- **Queue: `database` driver** (ne Redis) — funkční skutečná async fronta (běží přes
+  `php artisan queue:work`, podporuje retries/backoff), jen bez Redis závislosti. Lze později
+  přepnout na Redis jen změnou `QUEUE_CONNECTION`, bez zásahu do kódu jobů.
+- **Mail: `log` driver** — žádný SMTP server lokálně, e-maily nejsou v scope projektu.
+- Git repo založený a napojený na `https://github.com/crash963/payment-gateway`.
+
+## Autentizace merchantů
+
+- **Vlastní API-key middleware**, ne Laravel Sanctum — Sanctum je primárně pro
+  SPA/user session tokeny, náš use-case je B2B server-to-server API klíč vázaný na Merchanta,
+  ne na User model. Bližší reálným payment gateways (Stripe apod.).
+
+## Konvence
+
+- Primary key u API-exponovaných entit: **ULID** (ne auto-increment int, ne UUIDv4).
+  Důvod viz `02-merchant-model.md`.
+- Peníze: integer v nejmenší jednotce měny (žádný float), Money Value Object.
+- V kódu píšeme důkladné WHY-komentáře (proč jsme se rozhodli takhle, ne jen co kód dělá) —
+  účel projektu je i studijní materiál na pohovor.
