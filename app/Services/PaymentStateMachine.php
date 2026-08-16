@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\PaymentEventType;
 use App\Enums\PaymentStatus;
 use App\Exceptions\InvalidStateTransitionException;
 use App\Models\Payment;
+use App\Models\PaymentEvent;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -17,16 +19,21 @@ use Illuminate\Support\Facades\DB;
 class PaymentStateMachine
 {
     /**
+     * @param  array<string, mixed>  $metadata  extra context to attach to the resulting
+     *                                          PaymentEvent (e.g. a provider response id) -
+     *                                          merged with the always-present from/to values
+     *
      * @throws InvalidStateTransitionException if $to isn't reachable from the payment's
      *                                         current status
      */
-    public function transitionTo(Payment $payment, PaymentStatus $to): Payment
+    public function transitionTo(Payment $payment, PaymentStatus $to, array $metadata = []): Payment
     {
         $from = $payment->status;
 
         if ($from === $to) {
             // Not a transition at all (e.g. a second partial refund that doesn't change
-            // the overall status) - nothing to validate or persist.
+            // the overall status) - nothing to validate or persist, and nothing new to
+            // put in the audit log either.
             return $payment;
         }
 
@@ -34,15 +41,18 @@ class PaymentStateMachine
             throw new InvalidStateTransitionException($from, $to);
         }
 
-        // A single UPDATE doesn't strictly need a transaction on its own. This
-        // boundary is established now because the next step (payment_events audit
-        // trail) will insert a PaymentEvent row in the same place - and at that point
-        // the update+insert MUST commit or roll back together, or we'd end up with a
-        // status change nobody can see in the audit history. Establishing the boundary
-        // here, before it's load-bearing, means it can't be forgotten later.
-        DB::transaction(function () use ($payment, $to) {
+        // The status UPDATE and the PaymentEvent INSERT must commit or roll back
+        // together - a status change with no corresponding audit row (or vice versa)
+        // would make payment_events an unreliable history, which defeats its purpose.
+        DB::transaction(function () use ($payment, $from, $to, $metadata) {
             $payment->status = $to;
             $payment->save();
+
+            PaymentEvent::create([
+                'payment_id' => $payment->id,
+                'type' => PaymentEventType::forStatus($to),
+                'metadata' => [...$metadata, 'from' => $from->value, 'to' => $to->value],
+            ]);
         });
 
         return $payment->refresh();

@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Enums\PaymentEventType;
 use App\Enums\PaymentStatus;
 use App\Exceptions\InvalidStateTransitionException;
 use App\Models\Payment;
+use App\Models\PaymentEvent;
 use App\Services\PaymentStateMachine;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -20,6 +22,22 @@ class PaymentStateMachineTest extends TestCase
         (new PaymentStateMachine)->transitionTo($payment, PaymentStatus::Paid);
 
         $this->assertSame(PaymentStatus::Paid, $payment->fresh()->status);
+    }
+
+    public function test_a_valid_transition_writes_a_payment_event(): void
+    {
+        $payment = Payment::factory()->create();
+
+        (new PaymentStateMachine)->transitionTo($payment, PaymentStatus::Paid, ['note' => 'provider SUCCESS']);
+
+        $event = PaymentEvent::where('payment_id', $payment->id)->sole();
+
+        $this->assertSame(PaymentEventType::PaymentPaid, $event->type);
+        $this->assertSame([
+            'note' => 'provider SUCCESS',
+            'from' => 'pending',
+            'to' => 'paid',
+        ], $event->metadata);
     }
 
     public function test_an_invalid_transition_throws_and_does_not_persist(): void
@@ -48,5 +66,14 @@ class PaymentStateMachineTest extends TestCase
         $result = (new PaymentStateMachine)->transitionTo($payment, PaymentStatus::PartiallyRefunded);
 
         $this->assertSame(PaymentStatus::PartiallyRefunded, $result->status);
+    }
+
+    public function test_a_no_op_transition_does_not_write_a_payment_event(): void
+    {
+        $payment = Payment::factory()->partiallyRefunded()->create();
+
+        (new PaymentStateMachine)->transitionTo($payment, PaymentStatus::PartiallyRefunded);
+
+        $this->assertSame(0, PaymentEvent::where('payment_id', $payment->id)->count());
     }
 }
