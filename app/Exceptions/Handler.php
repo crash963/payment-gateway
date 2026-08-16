@@ -6,6 +6,7 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -59,6 +60,19 @@ class Handler extends ExceptionHandler
                 'message' => $e->getMessage(),
             ],
         ], 409));
+
+        // Covers both a route-model-bound id that doesn't exist at all AND
+        // PaymentController::show()'s deliberate `abort(404)` on a Policy denial
+        // (Laravel converts ModelNotFoundException to NotFoundHttpException before any
+        // renderable runs, so one handler here catches both) - the message is
+        // deliberately generic for the same reason unauthenticated()'s is: it must not
+        // read differently for "doesn't exist" vs "exists but isn't yours".
+        $this->renderable(fn (NotFoundHttpException $e) => response()->json([
+            'error' => [
+                'code' => 'not_found',
+                'message' => 'The requested resource was not found.',
+            ],
+        ], 404));
     }
 
     /**

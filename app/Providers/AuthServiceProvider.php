@@ -4,6 +4,8 @@ namespace App\Providers;
 
 // use Illuminate\Support\Facades\Gate;
 use App\Auth\ApiKeyGuard;
+use App\Models\Payment;
+use App\Policies\PaymentPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Auth;
 
@@ -12,10 +14,15 @@ class AuthServiceProvider extends ServiceProvider
     /**
      * The model to policy mappings for the application.
      *
+     * Laravel would actually auto-discover this via naming convention
+     * (App\Models\Payment -> App\Policies\PaymentPolicy) without registering it here -
+     * kept explicit anyway, it costs one line and removes any doubt about which policy
+     * governs which model when skimming this file.
+     *
      * @var array<class-string, class-string>
      */
     protected $policies = [
-        //
+        Payment::class => PaymentPolicy::class,
     ];
 
     /**

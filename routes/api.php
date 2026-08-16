@@ -19,5 +19,7 @@ use Illuminate\Support\Facades\Route;
 // was never configured.
 
 Route::middleware('auth:merchant')->group(function () {
+    Route::get('/payments', [PaymentController::class, 'index']);
     Route::post('/payments', [PaymentController::class, 'store']);
+    Route::get('/payments/{payment}', [PaymentController::class, 'show']);
 });

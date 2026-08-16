@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Merchant;
 use App\Models\User;
 
 return [
@@ -49,10 +50,15 @@ return [
             'provider' => 'users',
         ],
 
-        // No "provider" key - ApiKeyGuard resolves the Merchant itself
+        // "provider" is unused at runtime - ApiKeyGuard resolves the Merchant itself
         // (Merchant::findByPlainApiKey()) rather than going through a UserProvider.
+        // It's declared anyway so Artisan generators (make:policy et al.) can look up
+        // which model the "merchant" guard authenticates, the same way they would for
+        // "web"/"users" - without it, `php artisan make:policy --model=X` can't guess
+        // the user type for the stub and errors out.
         'merchant' => [
             'driver' => 'api-key',
+            'provider' => 'merchants',
         ],
     ],
 
@@ -83,6 +89,11 @@ return [
         //     'driver' => 'database',
         //     'table' => 'users',
         // ],
+
+        'merchants' => [
+            'driver' => 'eloquent',
+            'model' => Merchant::class,
+        ],
     ],
 
     /*
