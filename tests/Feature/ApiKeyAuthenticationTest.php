@@ -85,4 +85,21 @@ class ApiKeyAuthenticationTest extends TestCase
 
         $response->assertStatus(401);
     }
+
+    /**
+     * Regression test for a real bug found by manually curling the running dev server
+     * (not caught by any of the tests above, since getJson()/postJson() always send
+     * `Accept: application/json`): a plain request with no Accept header - which
+     * $request->expectsJson() treats as false - used to crash with
+     * RouteNotFoundException('login') instead of returning 401 JSON. Fixed by making
+     * Handler::unauthenticated() and Authenticate::redirectTo() unconditional - this
+     * app has no login page to redirect to, ever.
+     */
+    public function test_an_unauthenticated_request_without_an_accept_header_still_gets_json(): void
+    {
+        $response = $this->withHeaders(['Accept' => '*/*'])->get('/__test/whoami');
+
+        $response->assertStatus(401);
+        $response->assertJson(['error' => ['code' => 'unauthenticated']]);
+    }
 }

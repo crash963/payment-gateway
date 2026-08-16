@@ -20,6 +20,13 @@ Cíl není jen funkční app, ale schopnost obhájit každé rozhodnutí u pohov
 - Důsledek pro concurrency (Den 2 téma): SQL Server defaultně používá lock-based
   READ COMMITTED (ne MVCC jako Postgres), pokud se nezapne READ_COMMITTED_SNAPSHOT.
   `Eloquent::lockForUpdate()` funguje i tady — generuje `WITH (UPDLOCK, ROWLOCK)` místo Postgres `FOR UPDATE`.
+- **Oddělená testovací DB: `PaymentGatewayTest`** (stejný server/login jako `PaymentGateway`).
+  Původně jsme kvůli času šli bez ní (testy proti stejné DB jako dev data) — ukázalo se to
+  jako reálný problém prakticky hned: `RefreshDatabase` dělá `migrate:fresh`, takže každé
+  spuštění testů smazalo ručně seedovaná/vytvořená data (demo merchant). Řešeno přes
+  `.env.testing` (Laravel ho načte automaticky, když `APP_ENV=testing` - viz `phpunit.xml`).
+  **Důležité:** `.env.testing`, pokud existuje, se načte MÍSTO `.env`, ne jako doplněk k němu -
+  musí tedy obsahovat kompletní sadu proměnných (zkopírováno z `.env`), ne jen `DB_DATABASE`.
 
 ## Infrastruktura
 

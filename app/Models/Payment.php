@@ -41,6 +41,29 @@ class Payment extends Model
     }
 
     /**
+     * The one blessed way to create a Payment - sets `status` to Pending explicitly in
+     * PHP via forceFill(), the same way PaymentStateMachine is the one blessed way to
+     * *change* status afterwards. Callers (PaymentService) pass everything else through
+     * $attributes; those still go through the normal $fillable guard via forceFill's
+     * merge, they're just combined with the one field that isn't fillable.
+     *
+     * Why this exists instead of just `Payment::create($attributes)` relying on the
+     * column's DB-level default: Eloquent has no idea a DB default fired unless the
+     * model is refreshed afterwards - a bare create() leaves `status` null in memory
+     * (not "pending"), which then blows up the first time anything reads it (e.g. the
+     * enum cast, or PaymentResource). Setting it explicitly here means the in-memory
+     * model is correct immediately, no extra refresh() round trip needed.
+     */
+    public static function createPending(array $attributes): self
+    {
+        $payment = new self;
+        $payment->forceFill([...$attributes, 'status' => PaymentStatus::Pending]);
+        $payment->save();
+
+        return $payment;
+    }
+
+    /**
      * Simple accessor, not a custom Eloquent cast spanning two columns - chosen over a
      * CastsAttributes implementation to keep this step smaller. Revisit as a refactor
      * once Refund also needs a Money if the duplication becomes annoying.

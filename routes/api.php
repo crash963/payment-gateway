@@ -1,6 +1,6 @@
 <?php
 
-use Illuminate\Http\Request;
+use App\Http\Controllers\Api\PaymentController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+// Removed the skeleton's default `auth:sanctum` /user route - we deliberately don't
+// use Sanctum (see storage/docs/00-stack-decisions.md), so it referenced a guard that
+// was never configured.
+
+Route::middleware('auth:merchant')->group(function () {
+    Route::post('/payments', [PaymentController::class, 'store']);
 });

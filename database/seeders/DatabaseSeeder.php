@@ -2,21 +2,33 @@
 
 namespace Database\Seeders;
 
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\Merchant;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
 {
     /**
-     * Seed the application's database.
+     * Creates one fixed demo merchant for local manual testing (curl/Postman), so the
+     * API key is always the same known value instead of a fresh random one every time
+     * you re-seed. Uses forceFill(), not create()/updateOrCreate() - those go through
+     * the normal $fillable guard, which deliberately excludes api_key_hash/
+     * webhook_secret (see Merchant model), so they'd be silently dropped here too, the
+     * same trap Payment::createPending() exists to avoid.
      */
     public function run(): void
     {
-        // \App\Models\User::factory(10)->create();
+        $apiKey = 'pf_demo_local_testing_key';
 
-        // \App\Models\User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
+        $merchant = Merchant::query()->where('name', 'Demo Shop')->first() ?? new Merchant;
+
+        $merchant->forceFill([
+            'name' => 'Demo Shop',
+            'api_key_hash' => Merchant::hashApiKey($apiKey),
+            'webhook_secret' => Str::random(40),
+            'active' => true,
+        ])->save();
+
+        $this->command->info("Demo merchant ready. API key: {$apiKey}");
     }
 }
