@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\User;
+
 return [
 
     /*
@@ -13,8 +15,14 @@ return [
     |
     */
 
+    /*
+    | Default guard is "merchant", not "web": this app has no session/login flow for
+    | the built-in User model - every authenticated request is a merchant presenting
+    | an API key. Keeping this as the default means $request->user()/auth()->user()
+    | work everywhere without naming the guard explicitly. See App\Auth\ApiKeyGuard.
+    */
     'defaults' => [
-        'guard' => 'web',
+        'guard' => 'merchant',
         'passwords' => 'users',
     ],
 
@@ -40,6 +48,12 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // No "provider" key - ApiKeyGuard resolves the Merchant itself
+        // (Merchant::findByPlainApiKey()) rather than going through a UserProvider.
+        'merchant' => [
+            'driver' => 'api-key',
+        ],
     ],
 
     /*
@@ -62,7 +76,7 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => App\Models\User::class,
+            'model' => User::class,
         ],
 
         // 'users' => [

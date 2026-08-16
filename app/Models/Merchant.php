@@ -2,13 +2,24 @@
 
 namespace App\Models;
 
+use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
-class Merchant extends Model
+/**
+ * Implements Authenticatable so App\Auth\ApiKeyGuard can hand a Merchant straight to
+ * Laravel's normal auth plumbing (`$request->user()`, Policies, Gate) - no bespoke
+ * "current merchant" helper needed anywhere else in the app. The trait's password/
+ * remember-token methods are unused dead weight for us (no password, no "remember me"
+ * concept for a B2B API key), but they're harmless no-ops, not something that needs
+ * removing.
+ */
+class Merchant extends Model implements Authenticatable
 {
+    use AuthenticatableTrait;
     use HasFactory;
 
     // HasUlids overrides Eloquent's default auto-increment behaviour: it generates a ULID
