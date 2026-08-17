@@ -37,6 +37,11 @@ Cíl není jen funkční app, ale schopnost obhájit každé rozhodnutí u pohov
   přepnout na Redis jen změnou `QUEUE_CONNECTION`, bez zásahu do kódu jobů.
 - **Mail: `log` driver** — žádný SMTP server lokálně, e-maily nejsou v scope projektu.
 - Git repo založený a napojený na `https://github.com/crash963/payment-gateway`.
+- `APP_URL=http://127.0.0.1:8000` (ne default `http://localhost`) - musí sedět s portem,
+  na kterém skutečně běží `php artisan serve --port=8000`, protože `url()` helper se
+  používá pro self-HTTP-cally (fake provider, viz `08-fake-provider-and-webhooks.md`).
+  Po každé změně `.env` je potřeba restartovat i `php artisan queue:work`, ne jen `serve`
+  - dlouho běžící proces má config načtený v paměti z okamžiku startu.
 
 ## Autentizace merchantů
 

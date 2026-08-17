@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\PaymentEventType;
 use App\Exceptions\IdempotencyKeyConflictException;
+use App\Jobs\InitiatePaymentWithProviderJob;
 use App\Models\Merchant;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
@@ -66,6 +67,16 @@ class PaymentService
 
                 return $payment;
             });
+
+            // Only for a genuine fresh insert - never on a replay (would double-charge
+            // the provider for the same logical payment) and never from inside the
+            // catch block's race-recovery branch below (that branch means someone
+            // ELSE'S request created this payment and already triggered its own
+            // provider call). ->afterCommit() defers the actual queue push until the
+            // transaction above has committed - dispatching before that would let the
+            // job run and query for a payment row that, from its point of view, might
+            // not exist yet.
+            InitiatePaymentWithProviderJob::dispatch($payment->id)->afterCommit();
 
             return ['payment' => $payment, 'created' => true];
         } catch (QueryException $e) {

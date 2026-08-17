@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\FakeProviderController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\ProviderWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -23,3 +25,11 @@ Route::middleware('auth:merchant')->group(function () {
     Route::post('/payments', [PaymentController::class, 'store']);
     Route::get('/payments/{payment}', [PaymentController::class, 'show']);
 });
+
+// Stands in for an external payment processor - see FakeProviderController. No
+// "merchant" auth: this isn't a merchant-facing route at all.
+Route::post('/fake-provider/charge', [FakeProviderController::class, 'charge']);
+
+// The provider calling back into PayFlow - protected by HMAC signature, not merchant
+// auth (see VerifyProviderWebhookSignature for why those are different trust models).
+Route::middleware('verify.provider.signature')->post('/provider/webhook', [ProviderWebhookController::class, 'handle']);
