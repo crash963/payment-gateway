@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\FakeProviderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProviderWebhookController;
+use App\Http\Controllers\Api\RefundController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -24,6 +25,10 @@ Route::middleware('auth:merchant')->group(function () {
     Route::get('/payments', [PaymentController::class, 'index']);
     Route::post('/payments', [PaymentController::class, 'store']);
     Route::get('/payments/{payment}', [PaymentController::class, 'show']);
+
+    Route::get('/payments/{payment}/refunds', [RefundController::class, 'index']);
+    Route::post('/payments/{payment}/refunds', [RefundController::class, 'store']);
+    Route::get('/refunds/{refund}', [RefundController::class, 'show']);
 });
 
 // Stands in for an external payment processor - see FakeProviderController. No

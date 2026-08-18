@@ -61,6 +61,13 @@ class Handler extends ExceptionHandler
             ],
         ], 409));
 
+        $this->renderable(fn (RefundExceedsRemainingAmountException $e) => response()->json([
+            'error' => [
+                'code' => 'refund_exceeds_remaining_amount',
+                'message' => $e->getMessage(),
+            ],
+        ], 409));
+
         // Covers both a route-model-bound id that doesn't exist at all AND
         // PaymentController::show()'s deliberate `abort(404)` on a Policy denial
         // (Laravel converts ModelNotFoundException to NotFoundHttpException before any

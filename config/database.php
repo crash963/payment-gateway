@@ -93,6 +93,26 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        /*
+        | Identical to 'sqlsrv' - same host/database/credentials - but a distinct named
+        | connection so Laravel opens a genuinely separate physical PDO connection to
+        | it. Used only by RefundConcurrencyTest to simulate a second concurrent
+        | process taking a lockForUpdate() on the same payment row: testing that a row
+        | lock actually blocks a second transaction requires two real connections, not
+        | two calls on the same one (a single connection can't contend with itself).
+        */
+        'sqlsrv_secondary' => [
+            'driver' => 'sqlsrv',
+            'host' => env('DB_HOST', 'localhost'),
+            'port' => env('DB_PORT', '1433'),
+            'database' => env('DB_DATABASE', 'forge'),
+            'username' => env('DB_USERNAME', 'forge'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'prefix_indexes' => true,
+        ],
+
     ],
 
     /*

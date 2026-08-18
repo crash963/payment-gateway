@@ -5,7 +5,9 @@ namespace App\Providers;
 // use Illuminate\Support\Facades\Gate;
 use App\Auth\ApiKeyGuard;
 use App\Models\Payment;
+use App\Models\Refund;
 use App\Policies\PaymentPolicy;
+use App\Policies\RefundPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Auth;
 
@@ -23,6 +25,7 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         Payment::class => PaymentPolicy::class,
+        Refund::class => RefundPolicy::class,
     ];
 
     /**
