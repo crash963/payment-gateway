@@ -20,6 +20,15 @@ use InvalidArgumentException;
  * Merchant::findByPlainApiKey() already IS the lookup, hashing included. Adding a
  * UserProvider on top would be an extra layer of indirection with no second
  * implementation it's abstracting over.
+ *
+ * Testing gotcha (see RateLimitingTest): $resolved/$merchant are cached on this
+ * INSTANCE, and Laravel's AuthManager caches that instance for the lifetime of the
+ * container - fine in real deployment (fresh container per request, no Octane - see
+ * storage/docs/00-stack-decisions.md), but Laravel's HTTP test helpers reuse the SAME
+ * container across every $this->getJson() call within one test method. A test that
+ * switches Authorization headers to simulate a DIFFERENT merchant mid-method must call
+ * auth()->forgetGuards() in between, or it silently keeps authenticating as whichever
+ * merchant resolved first.
  */
 class ApiKeyGuard implements Guard
 {

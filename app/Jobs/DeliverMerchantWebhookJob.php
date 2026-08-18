@@ -58,7 +58,7 @@ class DeliverMerchantWebhookJob implements ShouldQueue
         // cascade from the payment itself) - nothing left to deliver.
         if (! $event) {
             return;
-        } 
+        }
 
         $webhookName = $event->type->webhookEventName();
 

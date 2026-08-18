@@ -24,25 +24,41 @@ use Illuminate\Support\Facades\Route;
 // was never configured.
 
 Route::middleware('auth:merchant')->group(function () {
-    Route::get('/payments', [PaymentController::class, 'index']);
-    Route::post('/payments', [PaymentController::class, 'store']);
-    Route::get('/payments/{payment}', [PaymentController::class, 'show']);
+    // throttle:merchant-api runs AFTER auth:merchant here (route-level middleware
+    // order), so it sees the resolved Merchant and keys by merchant id - see
+    // RouteServiceProvider for why that's not true of the outer 'api' group's own
+    // default limiter.
+    Route::middleware('throttle:merchant-api')->group(function () {
+        Route::get('/payments', [PaymentController::class, 'index']);
+        Route::post('/payments', [PaymentController::class, 'store']);
+        Route::get('/payments/{payment}', [PaymentController::class, 'show']);
 
-    Route::get('/payments/{payment}/refunds', [RefundController::class, 'index']);
-    Route::post('/payments/{payment}/refunds', [RefundController::class, 'store']);
-    Route::get('/refunds/{refund}', [RefundController::class, 'show']);
+        Route::get('/payments/{payment}/refunds', [RefundController::class, 'index']);
+        Route::post('/payments/{payment}/refunds', [RefundController::class, 'store']);
+        Route::get('/refunds/{refund}', [RefundController::class, 'show']);
+    });
 
-    Route::post('/copilot/chat', [CopilotController::class, 'chat']);
+    // Own, much stricter limiter (see RouteServiceProvider) - separate from
+    // merchant-api because the cost profile is completely different (real OpenAI
+    // spend per call, not just app load).
+    Route::middleware('throttle:copilot')->post('/copilot/chat', [CopilotController::class, 'chat']);
 });
 
 // Stands in for an external payment processor - see FakeProviderController. No
-// "merchant" auth: this isn't a merchant-facing route at all.
+// "merchant" auth: this isn't a merchant-facing route at all. No dedicated rate
+// limiter either - relies only on the global 'api' group default (60/min/IP) -
+// deliberate, see storage/docs/14-rate-limiting.md: this route "would never exist in
+// a real deployment" (it's a stand-in for a real external processor), so a stricter
+// dedicated limit would just be exercise, not real protection.
 Route::post('/fake-provider/charge', [FakeProviderController::class, 'charge']);
 
 // The provider calling back into PayFlow - protected by HMAC signature, not merchant
 // auth (see VerifyProviderWebhookSignature for why those are different trust models).
-Route::middleware('verify.provider.signature')->post('/provider/webhook', [ProviderWebhookController::class, 'handle']);
+// throttle:provider-webhook runs BEFORE the signature check on purpose, so a flood of
+// invalid-signature attempts is capped too, not just valid ones.
+Route::middleware(['throttle:provider-webhook', 'verify.provider.signature'])->post('/provider/webhook', [ProviderWebhookController::class, 'handle']);
 
 // Stands in for a merchant's own server, for local demo purposes only - see
-// DemoMerchantWebhookReceiverController. Would never exist in a real deployment.
+// DemoMerchantWebhookReceiverController. Would never exist in a real deployment - same
+// "global default only" reasoning as /fake-provider/charge above.
 Route::post('/demo/webhook-receiver', [DemoMerchantWebhookReceiverController::class, 'receive']);
