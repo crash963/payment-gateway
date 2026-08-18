@@ -4,6 +4,7 @@ namespace App\Exceptions;
 
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -80,6 +81,19 @@ class Handler extends ExceptionHandler
                 'message' => 'The requested resource was not found.',
             ],
         ], 404));
+
+        // Without this, a throttled request falls through to Laravel's default JSON
+        // exception shape - {"message": "Too Many Attempts."} - breaking the one
+        // consistent {"error": {"code", "message"}} envelope every other error on this
+        // API uses (see the register() comment above). $e->getHeaders() carries
+        // Retry-After (and the X-RateLimit-* headers) set by ThrottleRequests - those
+        // must survive onto the response, not just the body shape.
+        $this->renderable(fn (ThrottleRequestsException $e) => response()->json([
+            'error' => [
+                'code' => 'too_many_requests',
+                'message' => 'Too many requests. Please slow down and try again.',
+            ],
+        ], 429, $e->getHeaders()));
     }
 
     /**

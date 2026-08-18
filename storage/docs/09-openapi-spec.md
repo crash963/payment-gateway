@@ -1,7 +1,18 @@
 # OpenAPI specifikace
 
 `openapi.yaml` v kořeni repa — ručně psaná (ne generovaná z anotací), popisuje
-merchant-facing API (`/payments`, `/payments/{payment}/refunds`, `/refunds/{refund}`).
+merchant-facing API (`/payments`, `/payments/{payment}/refunds`, `/refunds/{refund}`,
+`/copilot/chat`).
+
+**Dodatek (Den 4, po přidání rate limitingu):** doplněn `/copilot/chat` — chyběl od
+začátku, přestože jde o plnohodnotný merchant-facing endpoint se stejnou
+`auth:merchant` autentizací jako zbytek. Ironie: `searchDocumentation()` tool
+Copilota tenhle soubor sám prohledává jako zdroj, ale spec předtím nepopisoval sám
+sebe. Zároveň doplněna `429` odpověď na všechny endpointy (viz
+`14-rate-limiting.md`) — a při té příležitosti se ukázalo, že `429` bez vlastního
+`renderable` v `Handler.php` neodpovídalo jednotné `{error: {code, message}}`
+obálce, kterou má zbytek API — opraveno v `app/Exceptions/Handler.php`, ne jen
+v dokumentaci (spec musí popisovat skutečné chování, ne aspirační).
 
 **Proč ručně, ne generovaná z kódu:** malý počet endpointů, žádná nová dependency
 (balíčky jako `l5-swagger` by přidaly PHP anotace nad každý controller). Nevýhoda:

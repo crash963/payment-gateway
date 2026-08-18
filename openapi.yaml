@@ -42,6 +42,7 @@ paths:
               schema: { $ref: '#/components/schemas/PaymentCollection' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
     post:
       summary: Create a payment
@@ -100,6 +101,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '409': { $ref: '#/components/responses/IdempotencyConflict' }
         '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /payments/{payment}:
     get:
@@ -119,6 +121,7 @@ paths:
               schema: { $ref: '#/components/schemas/PaymentResource' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /payments/{payment}/refunds:
     get:
@@ -135,6 +138,7 @@ paths:
               schema: { $ref: '#/components/schemas/RefundCollection' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
     post:
       summary: Refund a payment (partial or full)
@@ -184,6 +188,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /refunds/{refund}:
     get:
@@ -203,6 +208,50 @@ paths:
               schema: { $ref: '#/components/schemas/RefundResource' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /copilot/chat:
+    post:
+      summary: Chat with the AI Integration Copilot
+      description: |
+        Stateless: the server persists nothing between requests. The client resends
+        the full conversation history each turn (see `conversation` in the response
+        below) plus the new message; on the next turn, send that same array back with
+        one more message appended.
+
+        The assistant automatically calls read-only tools scoped to the authenticated
+        merchant (`getPayment`, `getPaymentEvents`, `getWebhookDeliveries`,
+        `searchDocumentation`) - it can never see or act on another merchant's data,
+        regardless of what it's asked. The one write-capable tool, `resendWebhook`, is
+        human-in-the-loop: the assistant first returns a description of the proposed
+        action without executing it (surfaced in `conversation` as a tool message with
+        `requires_confirmation: true`); only send a follow-up user message containing
+        the merchant's explicit confirmation for the assistant to call it again with
+        `confirmed: true` and actually perform it.
+
+        Rate limited more strictly than the rest of the API (10/min, not 60) - every
+        call can trigger a real OpenAI API request. See
+        storage/docs/12-ai-integration-copilot.md for the full design.
+      tags: [Copilot]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CopilotChatRequest' }
+      responses:
+        '200':
+          description: |
+            The assistant's reply for this turn, plus the full updated conversation to
+            resend on the next one. `message` is null when the assistant's last action
+            this turn was a tool call with no accompanying text (e.g. it's still
+            waiting on results, or just proposed a write action for confirmation) -
+            inspect `conversation` for the tool-call/tool-result detail in that case.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CopilotChatResponse' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
 components:
   securitySchemes:
@@ -256,6 +305,19 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { error: { code: idempotency_key_conflict, message: "Idempotency-Key [...] was already used with different request parameters." } }
+    TooManyRequests:
+      description: |
+        Rate limit exceeded for this endpoint (limits vary by route - stricter for
+        /copilot/chat than the rest of the API, see storage/docs/14-rate-limiting.md).
+        Retry after the number of seconds in the `Retry-After` header.
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds until the limit resets.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: { code: too_many_requests, message: "Too many requests. Please slow down and try again." } }
 
   schemas:
     PaymentStatus:
@@ -333,6 +395,52 @@ components:
         per_page: { type: integer }
         to: { type: integer, nullable: true }
         total: { type: integer }
+
+    CopilotMessage:
+      type: object
+      required: [role]
+      description: |
+        One turn of the conversation. Shape varies by `role`, matching OpenAI's Chat
+        Completions message format directly (this API is a thin, scoped wrapper
+        around it, not a reinterpretation) - a `user`/`system` turn has `content`, an
+        `assistant` turn that called a tool has `tool_calls` instead (or as well as)
+        `content`, and a `tool` turn (a tool's result, fed back to the model) has
+        `tool_call_id` and `content`. Clients don't need to construct these by hand -
+        send a `user` message with just `content`, then echo back whatever the
+        previous response's `conversation` contained.
+      properties:
+        role: { type: string, enum: [user, assistant, tool, system] }
+        content: { type: string, nullable: true }
+        tool_call_id:
+          type: string
+          nullable: true
+          description: Present on `tool` messages - which tool call this is the result of.
+        tool_calls:
+          type: array
+          nullable: true
+          items: { type: object }
+          description: Present on `assistant` messages that invoked one or more tools. Passed through as OpenAI returned it.
+
+    CopilotChatRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/CopilotMessage' }
+
+    CopilotChatResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          nullable: true
+          description: The assistant's final text reply for this turn, or null - see the 200 response description above.
+        conversation:
+          type: array
+          items: { $ref: '#/components/schemas/CopilotMessage' }
+          description: Full history so far (everything sent, plus everything the assistant/tools produced this turn). Send this back verbatim, with one more user message appended, on the next call.
 
     Error:
       type: object

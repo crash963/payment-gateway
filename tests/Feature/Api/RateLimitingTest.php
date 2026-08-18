@@ -49,6 +49,7 @@ class RateLimitingTest extends TestCase
 
         $blocked->assertStatus(429);
         $blocked->assertHeader('Retry-After');
+        $blocked->assertJsonPath('error.code', 'too_many_requests');
     }
 
     public function test_a_different_merchant_has_its_own_independent_limit(): void

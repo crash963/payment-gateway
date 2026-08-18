@@ -66,6 +66,16 @@ processor, simulovaný merchant server). Mají jen globální `api` default (60/
 žádný dedikovaný limiter. Přidat jim vlastní přísnější limit by bylo cvičení, ne
 reálná ochrana - v produkčním nasazení by tyhle endpointy vůbec neexistovaly.
 
+## `429` a jednotný formát chyb
+
+`app/Exceptions/Handler.php` má už od REST API kroku jednotnou obálku chyb
+`{"error": {"code", "message"}}` pro validaci/idempotenci/404/401. Bez vlastního
+handleru pro `ThrottleRequestsException` by `429` spadl do Laravelího defaultu
+`{"message": "Too Many Attempts."}` - jiný tvar, jiné jméno klíče, žádný `code`.
+Doplněn `renderable(ThrottleRequestsException::class)` se stejnou obálkou
+(`code: too_many_requests`) a `$e->getHeaders()` předané do response, aby přežila
+hlavička `Retry-After` (tu nastavuje `ThrottleRequests` middleware, ne my).
+
 ## Vedlejší nález: `ApiKeyGuard` a testování více merchantů v jednom testu
 
 Test na nezávislost limitů mezi merchanty (`test_a_different_merchant_has_its_own_independent_limit`)
