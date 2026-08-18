@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\PaymentEventType;
 use App\Enums\PaymentStatus;
 use App\Exceptions\InvalidStateTransitionException;
+use App\Jobs\DeliverMerchantWebhookJob;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
 use Illuminate\Support\Facades\DB;
@@ -44,16 +45,24 @@ class PaymentStateMachine
         // The status UPDATE and the PaymentEvent INSERT must commit or roll back
         // together - a status change with no corresponding audit row (or vice versa)
         // would make payment_events an unreliable history, which defeats its purpose.
-        DB::transaction(function () use ($payment, $from, $to, $metadata) {
+        $event = DB::transaction(function () use ($payment, $from, $to, $metadata) {
             $payment->status = $to;
             $payment->save();
 
-            PaymentEvent::create([
+            return PaymentEvent::create([
                 'payment_id' => $payment->id,
                 'type' => PaymentEventType::forStatus($to),
                 'metadata' => [...$metadata, 'from' => $from->value, 'to' => $to->value],
             ]);
         });
+
+        // Only for event types the merchant actually cares about (see
+        // PaymentEventType::webhookEventName()) - ->afterCommit() for the same reason
+        // as InitiatePaymentWithProviderJob: the job mustn't run and query for this
+        // event before the transaction above has actually committed it.
+        if ($event->type->webhookEventName() !== null) {
+            DeliverMerchantWebhookJob::dispatch($event->id)->afterCommit();
+        }
 
         return $payment->refresh();
     }

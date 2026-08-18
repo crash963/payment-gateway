@@ -27,6 +27,11 @@ class DatabaseSeeder extends Seeder
             'api_key_hash' => Merchant::hashApiKey($apiKey),
             'webhook_secret' => Str::random(40),
             'active' => true,
+            // Points at DemoMerchantWebhookReceiverController - our own app standing
+            // in for the merchant's server, purely so webhook delivery is demoable
+            // without a second real server. url() (not a hardcoded string) so this
+            // stays correct whatever APP_URL/port the app is actually running on.
+            'webhook_url' => url('/api/demo/webhook-receiver'),
         ])->save();
 
         $this->command->info("Demo merchant ready. API key: {$apiKey}");

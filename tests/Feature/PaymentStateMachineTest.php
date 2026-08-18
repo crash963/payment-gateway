@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Enums\PaymentEventType;
 use App\Enums\PaymentStatus;
 use App\Exceptions\InvalidStateTransitionException;
+use App\Jobs\DeliverMerchantWebhookJob;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
 use App\Services\PaymentStateMachine;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class PaymentStateMachineTest extends TestCase
@@ -75,5 +77,27 @@ class PaymentStateMachineTest extends TestCase
         (new PaymentStateMachine)->transitionTo($payment, PaymentStatus::PartiallyRefunded);
 
         $this->assertSame(0, PaymentEvent::where('payment_id', $payment->id)->count());
+    }
+
+    public function test_a_valid_transition_dispatches_the_merchant_webhook_job(): void
+    {
+        Queue::fake();
+        $payment = Payment::factory()->create();
+
+        (new PaymentStateMachine)->transitionTo($payment, PaymentStatus::Paid);
+
+        $event = PaymentEvent::where('payment_id', $payment->id)->sole();
+
+        Queue::assertPushed(DeliverMerchantWebhookJob::class, fn ($job) => $job->paymentEventId === $event->id);
+    }
+
+    public function test_a_no_op_transition_does_not_dispatch_a_webhook_job(): void
+    {
+        Queue::fake();
+        $payment = Payment::factory()->partiallyRefunded()->create();
+
+        (new PaymentStateMachine)->transitionTo($payment, PaymentStatus::PartiallyRefunded);
+
+        Queue::assertNotPushed(DeliverMerchantWebhookJob::class);
     }
 }

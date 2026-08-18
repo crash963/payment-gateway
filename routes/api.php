@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\DemoMerchantWebhookReceiverController;
 use App\Http\Controllers\Api\FakeProviderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ProviderWebhookController;
@@ -38,3 +39,7 @@ Route::post('/fake-provider/charge', [FakeProviderController::class, 'charge']);
 // The provider calling back into PayFlow - protected by HMAC signature, not merchant
 // auth (see VerifyProviderWebhookSignature for why those are different trust models).
 Route::middleware('verify.provider.signature')->post('/provider/webhook', [ProviderWebhookController::class, 'handle']);
+
+// Stands in for a merchant's own server, for local demo purposes only - see
+// DemoMerchantWebhookReceiverController. Would never exist in a real deployment.
+Route::post('/demo/webhook-receiver', [DemoMerchantWebhookReceiverController::class, 'receive']);

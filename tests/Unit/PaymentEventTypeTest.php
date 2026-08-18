@@ -29,4 +29,20 @@ class PaymentEventTypeTest extends TestCase
 
         PaymentEventType::forStatus(PaymentStatus::Pending);
     }
+
+    public function test_webhook_event_name_covers_every_status_transition_type(): void
+    {
+        $this->assertSame('payment.authorized', PaymentEventType::PaymentAuthorized->webhookEventName());
+        $this->assertSame('payment.paid', PaymentEventType::PaymentPaid->webhookEventName());
+        $this->assertSame('payment.failed', PaymentEventType::PaymentFailed->webhookEventName());
+        $this->assertSame('payment.partially_refunded', PaymentEventType::PaymentPartiallyRefunded->webhookEventName());
+        $this->assertSame('payment.refunded', PaymentEventType::PaymentRefunded->webhookEventName());
+    }
+
+    public function test_webhook_event_name_is_null_for_internal_only_audit_events(): void
+    {
+        $this->assertNull(PaymentEventType::PaymentCreated->webhookEventName());
+        $this->assertNull(PaymentEventType::RefundCreated->webhookEventName());
+        $this->assertNull(PaymentEventType::RefundCompleted->webhookEventName());
+    }
 }

@@ -38,6 +38,7 @@ class Merchant extends Model implements Authenticatable
     protected $fillable = [
         'name',
         'active',
+        'webhook_url',
     ];
 
     /**

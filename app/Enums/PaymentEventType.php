@@ -37,4 +37,23 @@ enum PaymentEventType: string
             PaymentStatus::Refunded => self::PaymentRefunded,
         };
     }
+
+    /**
+     * The merchant-facing webhook event name (Stripe-style dot notation), or null for
+     * event types that are internal audit trail only and never trigger a merchant
+     * webhook (PaymentCreated - nothing to react to yet; RefundCreated/RefundCompleted -
+     * the corresponding PaymentPartiallyRefunded/PaymentRefunded event already covers
+     * "your payment's refund status changed", a merchant doesn't need both).
+     */
+    public function webhookEventName(): ?string
+    {
+        return match ($this) {
+            self::PaymentAuthorized => 'payment.authorized',
+            self::PaymentPaid => 'payment.paid',
+            self::PaymentFailed => 'payment.failed',
+            self::PaymentPartiallyRefunded => 'payment.partially_refunded',
+            self::PaymentRefunded => 'payment.refunded',
+            self::PaymentCreated, self::RefundCreated, self::RefundCompleted => null,
+        };
+    }
 }
