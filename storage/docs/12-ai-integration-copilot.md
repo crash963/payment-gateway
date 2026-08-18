@@ -73,6 +73,40 @@ retry/backoff, kdyby selhal znovu).
   job**, počet záznamů vzrostl na 2
 - `searchDocumentation` - úspěšně našel a použil vlastní dokumentaci k odpovědi
 
+## Demo UI (`GET /copilot`)
+
+`resources/views/copilot.blade.php` - jednoduchý vanilla JS chat interface (bez
+frameworku, bez build kroku), místo ručního volání API přes curl/Postman.
+Modul-level `conversation` pole drží celou historii (žádný stav na serveru - viz
+výše), UI vykresluje tool-call trace (`🔧 nazev({...})`) a pro `resendWebhook`
+zvlášť confirm/cancel box, když nástroj vrátí `requires_confirmation`. **Živě
+ověřeno v prohlížeči** (2026-08-18): založení platby -> dotaz na webhook -> tool
+trace `getWebhookDeliveries` -> návrh resendu s confirm boxem -> kliknutí
+"Potvrdit a provést" -> `resendWebhook` s `confirmed=true` -> počet záznamů v DB
+vzrostl z 1 na 2. Celý human-in-the-loop flow funguje end-to-end i přes UI, ne
+jen přes přímé API volání.
+
+### Známé omezení: stránka `/copilot` nemá vlastní přihlášení
+
+`GET /copilot` je veřejně dostupná (jen `web` middleware, ne `auth`) - stránku
+může otevřít kdokoliv, kdo zná URL. Bezpečnost je zajištěná až na úrovni API
+volání: `/api/copilot/chat` vyžaduje stejný `auth:merchant` API-key middleware
+jako zbytek API, klíč se zadává do pole v hlavičce stránky a posílá se jako
+`Authorization: Bearer`. Bez platného klíče žádný request neprojde - stránka
+samotná tedy nikoho k ničemu nepustí, jen chybí vlastní login obrazovka/session
+pro samotné UI.
+
+**Vědomě přijaté omezení** - dohodnuto, že se v rámci 4denního time-boxu
+neřeší, protože jde čistě o demo/prezentační nástroj na pohovor, ne o
+produkční feature. Kdyby šlo o skutečné nasazení, řešení by bylo buď (a) UI
+schované za standardní web session login (Laravel Breeze/Fortify + merchant
+user model), nebo (b) API klíč nikdy nezadávat ručně do pole, ale generovat
+server-side po přihlášení a předat do JS jen krátkodobý token. Tohle je
+záměrně **jen UX/demo gap, ne bezpečnostní díra v samotné API vrstvě** - páteřní
+autorizace (merchant scoping v každém nástroji, viz sekce výš) zůstává plně
+funkční a vynucená bez ohledu na to, jak se ke klíči někdo dostane k
+formuláři.
+
 ## Automatické testy (spuštěné a zelené)
 
 `CopilotServiceTest` (orchestrace: plain odpověď, tool-call round-trip, neznámý
