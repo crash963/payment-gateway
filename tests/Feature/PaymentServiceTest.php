@@ -8,6 +8,7 @@ use App\Models\Merchant;
 use App\Models\PaymentEvent;
 use App\Services\PaymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /**
@@ -20,6 +21,20 @@ use Tests\TestCase;
 class PaymentServiceTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // PaymentService::create() dispatches InitiatePaymentWithProviderJob, which
+        // runs synchronously under the `sync` queue driver phpunit.xml forces for
+        // tests - so every create() call here really does make an outbound HTTP call
+        // to the fake provider. This suite isn't testing that integration (see
+        // InitiatePaymentWithProviderJobTest/FakeProviderChargeTest for that), so a
+        // generic 202 is enough for every test in this class - none of them care about
+        // the provider's response, only that create() itself behaves correctly.
+        Http::fake(['*/api/fake-provider/charge' => Http::response(['received' => true], 202)]);
+    }
 
     private function payload(array $overrides = []): array
     {

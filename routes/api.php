@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\CopilotController;
 use App\Http\Controllers\Api\DemoMerchantWebhookReceiverController;
 use App\Http\Controllers\Api\FakeProviderController;
 use App\Http\Controllers\Api\PaymentController;
@@ -30,6 +31,8 @@ Route::middleware('auth:merchant')->group(function () {
     Route::get('/payments/{payment}/refunds', [RefundController::class, 'index']);
     Route::post('/payments/{payment}/refunds', [RefundController::class, 'store']);
     Route::get('/refunds/{refund}', [RefundController::class, 'show']);
+
+    Route::post('/copilot/chat', [CopilotController::class, 'chat']);
 });
 
 // Stands in for an external payment processor - see FakeProviderController. No

@@ -39,8 +39,7 @@ na stejném.
   doplacení → `refunded`, přeplacení → `409 refund_exceeds_remaining_amount` se
   smysluplnou zprávou, idempotentní replay → `200` stejný refund, `GET .../refunds` list
   funguje se stránkováním.
-- **Automatické testy napsané, ale zatím nespuštěné** - `PaymentGatewayTest` byla
-  nedostupná kvůli dlouhotrvajícímu SQL Server recovery problému (viz `00-stack-decisions.md`
-  pro kontext). Testy: `RefundServiceTest`, `RefundPolicyTest`, `RefundConcurrencyTest`,
+- **Automatické testy spuštěné a zelené** (viz `13-full-test-suite-debugging.md` pro
+  detaily o tom, co bylo potřeba opravit v `RefundConcurrencyTest`, než prošel):
+  `RefundServiceTest`, `RefundPolicyTest`, `RefundConcurrencyTest`,
   `tests/Feature/Api/CreateRefundTest.php`, `tests/Feature/Api/ListAndShowRefundsTest.php`.
-  **TODO: spustit `php artisan test` a ověřit, jakmile bude testovací DB zase dostupná.**

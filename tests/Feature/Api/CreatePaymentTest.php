@@ -5,11 +5,21 @@ namespace Tests\Feature\Api;
 use App\Models\Merchant;
 use App\Models\Payment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class CreatePaymentTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // See PaymentServiceTest::setUp() - same reasoning, this suite doesn't care
+        // about the provider integration itself.
+        Http::fake(['*/api/fake-provider/charge' => Http::response(['received' => true], 202)]);
+    }
 
     private function payload(array $overrides = []): array
     {

@@ -11,7 +11,7 @@ class DemoMerchantWebhookReceiverTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function post(array $payload, string $secret): TestResponse
+    private function postSignedWebhook(array $payload, string $secret): TestResponse
     {
         $rawBody = json_encode($payload);
         $signature = hash_hmac('sha256', $rawBody, $secret);
@@ -26,7 +26,7 @@ class DemoMerchantWebhookReceiverTest extends TestCase
     {
         $merchant = Merchant::factory()->create();
 
-        $response = $this->post([
+        $response = $this->postSignedWebhook([
             'event_id' => 'evt-1',
             'type' => 'payment.paid',
             'merchant_id' => $merchant->id,
@@ -40,7 +40,7 @@ class DemoMerchantWebhookReceiverTest extends TestCase
     {
         $merchant = Merchant::factory()->create();
 
-        $response = $this->post([
+        $response = $this->postSignedWebhook([
             'event_id' => 'evt-1',
             'type' => 'payment.paid',
             'merchant_id' => $merchant->id,

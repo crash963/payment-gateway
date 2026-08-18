@@ -50,4 +50,12 @@ return [
         'slow_response_delay_seconds' => (int) env('FAKE_PROVIDER_SLOW_RESPONSE_DELAY_SECONDS', 1),
     ],
 
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        // gpt-4o-mini: cheap and fast enough for a tool-calling loop, plenty capable
+        // for grounded Q&A over our own docs/data. Configurable in case that changes.
+        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+        'timeout_seconds' => (int) env('OPENAI_TIMEOUT_SECONDS', 30),
+    ],
+
 ];

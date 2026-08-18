@@ -76,9 +76,14 @@ ruční kill) v produkčním deploy skriptu.
   (odpovídá `backoff()[0] = 10`) - mechanismus prokazatelně funguje, zbytek (60s/300s/900s)
   necháno doběhnout na pozadí, ne čekáno v konverzaci.
 
-## Automatické testy (napsané, čekají na `PaymentGatewayTest`)
+## Automatické testy (spuštěné a zelené)
 
 `UrlSafetyCheckerTest` (Feature - potřebuje `config()`, proto ne Unit),
 `DeliverMerchantWebhookJobTest` (úspěch/selhání/timeout/no-url/callback_url override/SSRF
 refuse), `PaymentStateMachineTest` rozšířený o assert na dispatch, `DemoMerchantWebhookReceiverTest`.
 `tests/Unit/PaymentEventTypeTest.php` rozšířený o `webhookEventName()`.
+
+**Bonus nález při prvním kompletním běhu sady:** `DeliverMerchantWebhookJobTest`'s test
+na `500` odpověď odhalil, že vlastní testovací "ochrana" (blanketní `Http::fake()` v
+`tests/TestCase.php`) tiše stínila specifičtější fakes v jednotlivých testech - viz
+`13-full-test-suite-debugging.md`.

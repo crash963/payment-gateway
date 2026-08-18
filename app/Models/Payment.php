@@ -47,6 +47,16 @@ class Payment extends Model
     }
 
     /**
+     * Named paymentEvents(), not events() - Eloquent models have their own unrelated
+     * "model events" concept (saving/saved/creating/...), and this being right next to
+     * that word would be a constant source of "wait, which kind of event" confusion.
+     */
+    public function paymentEvents(): HasMany
+    {
+        return $this->hasMany(PaymentEvent::class);
+    }
+
+    /**
      * The one blessed way to create a Payment - sets `status` to Pending explicitly in
      * PHP via forceFill(), the same way PaymentStateMachine is the one blessed way to
      * *change* status afterwards. Callers (PaymentService) pass everything else through
