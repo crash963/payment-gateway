@@ -4,6 +4,7 @@ namespace App\Exceptions;
 
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -68,6 +69,35 @@ class Handler extends ExceptionHandler
                 'message' => $e->getMessage(),
             ],
         ], 409));
+
+        // Found in code review: this DomainException's own docblock says "a future API
+        // exception handler can catch DomainException to map this to a 409" - that
+        // handler never actually got written, so it fell through to a raw 500. Reachable
+        // for real: RefundController never checks a payment's status before calling
+        // RefundService (only ownership), so refunding a still-pending payment throws
+        // this; a conflicting/out-of-order provider webhook (e.g. declined after paid)
+        // throws it from ProviderWebhookController too.
+        $this->renderable(fn (InvalidStateTransitionException $e) => response()->json([
+            'error' => [
+                'code' => 'invalid_state_transition',
+                'message' => $e->getMessage(),
+            ],
+        ], 409));
+
+        // Found in code review: OpenAiClient::chat()'s own comment claims "the
+        // controller's exception handling turns this into a clean error response" -
+        // nothing actually did. A bad/expired OPENAI_API_KEY, an OpenAI rate limit, or
+        // an OpenAI outage threw all the way out to Laravel's default 500. 502, not 500
+        // or 409: this is specifically an upstream dependency failure, not something
+        // wrong with the merchant's own request. Message deliberately doesn't repeat
+        // OpenAI's own error body - that's an internal implementation detail, not
+        // something to leak to a merchant.
+        $this->renderable(fn (RequestException $e) => response()->json([
+            'error' => [
+                'code' => 'copilot_upstream_error',
+                'message' => 'The AI Copilot is temporarily unavailable. Please try again shortly.',
+            ],
+        ], 502));
 
         // Covers both a route-model-bound id that doesn't exist at all AND
         // PaymentController::show()'s deliberate `abort(404)` on a Policy denial

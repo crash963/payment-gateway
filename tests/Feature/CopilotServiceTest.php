@@ -119,6 +119,33 @@ class CopilotServiceTest extends TestCase
         Http::assertSentCount(5); // MAX_TOOL_ROUNDS, not an actual infinite loop
     }
 
+    /**
+     * Regression test (code review): chat() unconditionally prepended a fresh system
+     * message every call, but the client is designed to resend the whole previous
+     * 'conversation' (which already includes the system message from last turn) as
+     * next turn's $messages - so the system prompt duplicated and accumulated by one
+     * extra copy every turn instead of staying at exactly one.
+     */
+    public function test_a_second_turn_does_not_duplicate_the_system_message(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response($this->openAiTextResponse('ok')),
+        ]);
+
+        $merchant = Merchant::factory()->create();
+        $service = app(CopilotService::class);
+
+        $first = $service->chat($merchant, [['role' => 'user', 'content' => 'hi']]);
+
+        // Exactly what the real client does: resend the whole returned conversation,
+        // plus one new user message, as the next call's $messages.
+        $secondTurnMessages = [...$first['conversation'], ['role' => 'user', 'content' => 'and then?']];
+        $second = $service->chat($merchant, $secondTurnMessages);
+
+        $systemMessages = collect($second['conversation'])->where('role', 'system');
+        $this->assertCount(1, $systemMessages);
+    }
+
     public function test_get_payment_tool_never_returns_another_merchants_payment(): void
     {
         $owner = Merchant::factory()->create();

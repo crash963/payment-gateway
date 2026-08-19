@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Models\ProviderWebhookEvent;
 use App\Services\PaymentStateMachine;
+use App\Support\DetectsUniqueConstraintViolations;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,6 +28,8 @@ use Illuminate\Support\Facades\DB;
  */
 class ProviderWebhookController extends Controller
 {
+    use DetectsUniqueConstraintViolations;
+
     public function handle(Request $request, PaymentStateMachine $stateMachine): JsonResponse
     {
         $validated = $request->validate([
@@ -66,15 +69,5 @@ class ProviderWebhookController extends Controller
         }
 
         return response()->json(['status' => 'processed'], 200);
-    }
-
-    /**
-     * Same SQLSTATE 23000 check as PaymentService - see that class for why it's
-     * portable across DB engines and safe here (provider_webhook_events has exactly
-     * one UNIQUE constraint, on event_id).
-     */
-    private function isUniqueConstraintViolation(QueryException $e): bool
-    {
-        return $e->getCode() === '23000';
     }
 }

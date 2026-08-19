@@ -148,7 +148,7 @@
                         <input id="callbackUrl" type="text" placeholder="https://...">
                     </div>
                 </details>
-                <button type="submit" class="primary">Založit platbu</button>
+                <button type="submit" class="primary" id="createSubmitBtn">Založit platbu</button>
                 <div id="createError" class="error"></div>
             </form>
         </section>
@@ -187,7 +187,7 @@
                         <input id="refundAmount" type="number" min="1">
                     </div>
                     <div class="field" style="justify-content:flex-end">
-                        <button type="submit" class="primary">Vytvořit refund</button>
+                        <button type="submit" class="primary" id="refundSubmitBtn">Vytvořit refund</button>
                     </div>
                 </div>
                 <div id="refundError" class="error"></div>
@@ -349,6 +349,9 @@ function renderDetail(payment, events, deliveries, refunds) {
     }
 }
 
+const createSubmitBtn = document.getElementById('createSubmitBtn');
+const refundSubmitBtn = document.getElementById('refundSubmitBtn');
+
 createForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     createError.textContent = '';
@@ -360,6 +363,10 @@ createForm.addEventListener('submit', async (e) => {
     const returnUrl = document.getElementById('returnUrl').value.trim();
     const callbackUrl = document.getElementById('callbackUrl').value.trim();
 
+    // Disabled for the duration of the request - a fresh Idempotency-Key is generated
+    // per submission (see below), so a double-click/double-submit isn't deduped by the
+    // server and would otherwise create two distinct payments.
+    createSubmitBtn.disabled = true;
     try {
         const body = { order_id: prefix + baseOrderId, amount, currency };
         if (returnUrl) body.return_url = returnUrl;
@@ -374,6 +381,8 @@ createForm.addEventListener('submit', async (e) => {
         selectPayment(data.id); // jump straight to the new payment and start polling it
     } catch (e) {
         createError.textContent = 'Chyba: ' + e.message;
+    } finally {
+        createSubmitBtn.disabled = false;
     }
 });
 
@@ -383,12 +392,17 @@ refundForm.addEventListener('submit', async (e) => {
     const paymentId = refundForm.dataset.paymentId;
     const amount = parseInt(document.getElementById('refundAmount').value, 10);
 
+    // Same double-submit guard as createForm above, same reason: a fresh
+    // Idempotency-Key per click means the server won't dedupe a double-click.
+    refundSubmitBtn.disabled = true;
     try {
         await api('POST', `/payments/${paymentId}/refunds`, { amount }, { 'Idempotency-Key': crypto.randomUUID() });
         document.getElementById('refundAmount').value = '';
         loadDetail(paymentId);
     } catch (e) {
         refundError.textContent = 'Chyba: ' + e.message;
+    } finally {
+        refundSubmitBtn.disabled = false;
     }
 });
 

@@ -9,6 +9,7 @@ use App\Exceptions\RefundExceedsRemainingAmountException;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
 use App\Models\Refund;
+use App\Support\DetectsUniqueConstraintViolations;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
@@ -29,6 +30,8 @@ use Illuminate\Support\Facades\DB;
  */
 class RefundService
 {
+    use DetectsUniqueConstraintViolations;
+
     /**
      * @param  array{idempotency_key: string, amount: int}  $data
      * @return array{refund: Refund, created: bool}
@@ -101,20 +104,14 @@ class RefundService
     }
 
     /**
-     * SQLSTATE 23000 - see PaymentService for why this check is portable. refunds has
-     * exactly one UNIQUE constraint (payment_id, idempotency_key).
-     */
-    private function isUniqueConstraintViolation(QueryException $e): bool
-    {
-        return $e->getCode() === '23000';
-    }
-
-    /**
      * @param  array{amount: int}  $data
      */
     private function resolveExisting(Refund $existing, array $data): Refund
     {
-        if ($existing->amount !== $data['amount']) {
+        // (int) cast: see PaymentService::resolveExisting() for why - same
+        // string-vs-int mismatch on a numeric-string amount would otherwise
+        // misclassify a genuine idempotent replay as a conflict.
+        if ($existing->amount !== (int) $data['amount']) {
             throw new IdempotencyKeyConflictException($existing->idempotency_key);
         }
 

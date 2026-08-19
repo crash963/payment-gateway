@@ -3,8 +3,8 @@
 namespace App\Services\Copilot\Tools;
 
 use App\Models\Merchant;
-use App\Models\Payment;
 use App\Models\WebhookDelivery;
+use App\Services\Copilot\Tools\Concerns\FindsMerchantPayment;
 
 /**
  * The tool behind the exact diagnostic scenario from the spec: "payment is paid but my
@@ -14,6 +14,8 @@ use App\Models\WebhookDelivery;
  */
 class GetWebhookDeliveriesTool implements CopilotTool
 {
+    use FindsMerchantPayment;
+
     public function name(): string
     {
         return 'getWebhookDeliveries';
@@ -37,12 +39,10 @@ class GetWebhookDeliveriesTool implements CopilotTool
 
     public function execute(Merchant $merchant, array $arguments): array
     {
-        $payment = Payment::query()
-            ->where('merchant_id', $merchant->id)
-            ->find($arguments['payment_id'] ?? null);
+        $payment = $this->findMerchantPayment($merchant, $arguments);
 
-        if (! $payment) {
-            return ['error' => 'No payment with that id was found for this merchant.'];
+        if (is_array($payment)) {
+            return $payment;
         }
 
         // Scoped both by merchant_id directly AND by only this payment's events - two

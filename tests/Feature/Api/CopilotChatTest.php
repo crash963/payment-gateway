@@ -56,6 +56,29 @@ class CopilotChatTest extends TestCase
         $response->assertStatus(422);
     }
 
+    /**
+     * Regression test (code review): OpenAiClient::chat()'s own comment claimed "the
+     * controller's exception handling turns this into a clean error response" - but
+     * nothing actually caught the RequestException $response->throw() raises on a
+     * non-2xx OpenAI response, so a bad API key / rate limit / outage fell through to
+     * a raw 500 instead.
+     */
+    public function test_an_upstream_openai_failure_is_a_clean_502_not_a_500(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response(['error' => ['message' => 'invalid_api_key']], 401),
+        ]);
+
+        $merchant = Merchant::factory()->withApiKey('test-key')->create();
+
+        $response = $this->postJson('/api/copilot/chat', [
+            'messages' => [['role' => 'user', 'content' => 'hi']],
+        ], ['Authorization' => 'Bearer test-key']);
+
+        $response->assertStatus(502);
+        $response->assertJsonPath('error.code', 'copilot_upstream_error');
+    }
+
     public function test_message_content_survives_validation_and_reaches_the_model(): void
     {
         // Regression test for the bug found live: FormRequest::validated() was

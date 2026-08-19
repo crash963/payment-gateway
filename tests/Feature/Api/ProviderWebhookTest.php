@@ -101,6 +101,35 @@ class ProviderWebhookTest extends TestCase
         $this->assertSame(1, PaymentEvent::where('payment_id', $payment->id)->count());
     }
 
+    /**
+     * Regression test (code review): a conflicting/out-of-order webhook (a 'declined'
+     * arriving for a payment already 'paid' from an earlier event) makes
+     * PaymentStateMachine throw InvalidStateTransitionException (Paid can't move to
+     * Failed - see PaymentStatus::allowedTransitions()). That exception had no
+     * renderable() registered in Handler.php, so this fell through to a raw 500
+     * instead of the API's normal error envelope.
+     */
+    public function test_a_conflicting_webhook_status_is_a_409_not_a_500(): void
+    {
+        $payment = Payment::factory()->create();
+
+        $this->postSignedWebhook([
+            'event_id' => (string) Str::ulid(),
+            'payment_id' => $payment->id,
+            'status' => 'success',
+        ])->assertOk();
+
+        $response = $this->postSignedWebhook([
+            'event_id' => (string) Str::ulid(),
+            'payment_id' => $payment->id,
+            'status' => 'declined',
+        ]);
+
+        $response->assertStatus(409);
+        $response->assertJsonPath('error.code', 'invalid_state_transition');
+        $this->assertSame(PaymentStatus::Paid, $payment->fresh()->status);
+    }
+
     public function test_an_unknown_payment_id_is_404(): void
     {
         $response = $this->postSignedWebhook([

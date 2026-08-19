@@ -132,4 +132,25 @@ class CreatePaymentTest extends TestCase
         $response->assertStatus(409);
         $response->assertJsonPath('error.code', 'idempotency_key_conflict');
     }
+
+    /**
+     * Regression test (code review): PaymentService::resolveExisting() compared
+     * $existing->amount (an int, via the model cast) to $data['amount'] with strict
+     * === - a client sending amount as a numeric STRING passes the 'integer'
+     * validation rule (shape check, not a type coercion) unchanged, so a genuine
+     * replay was misclassified as a conflict.
+     */
+    public function test_repeating_the_same_request_with_amount_as_a_numeric_string_is_still_idempotent(): void
+    {
+        $merchant = Merchant::factory()->withApiKey('test-key')->create();
+        $headers = ['Authorization' => 'Bearer test-key', 'Idempotency-Key' => 'idem-1'];
+
+        $first = $this->postJson('/api/payments', $this->payload(['amount' => 259900]), $headers);
+        $second = $this->postJson('/api/payments', $this->payload(['amount' => '259900']), $headers);
+
+        $first->assertCreated();
+        $second->assertOk();
+        $this->assertSame($first->json('data.id'), $second->json('data.id'));
+        $this->assertSame(1, Payment::count());
+    }
 }

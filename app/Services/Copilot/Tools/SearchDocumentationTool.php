@@ -52,7 +52,10 @@ class SearchDocumentationTool implements CopilotTool
         foreach ($this->documentationFiles() as $path) {
             $content = @file_get_contents($path);
 
-            if ($content === false || ! stripos($content, $query)) {
+            // Found in code review: `! stripos(...)` treated a match at position 0 (the
+            // very start of the file) as "no match", since stripos() returns int 0 there
+            // and `!0` is true - the strongest possible match was silently skipped.
+            if ($content === false || stripos($content, $query) === false) {
                 continue;
             }
 

@@ -4,10 +4,12 @@ namespace App\Services\Copilot\Tools;
 
 use App\Http\Resources\PaymentResource;
 use App\Models\Merchant;
-use App\Models\Payment;
+use App\Services\Copilot\Tools\Concerns\FindsMerchantPayment;
 
 class GetPaymentTool implements CopilotTool
 {
+    use FindsMerchantPayment;
+
     public function name(): string
     {
         return 'getPayment';
@@ -34,15 +36,10 @@ class GetPaymentTool implements CopilotTool
 
     public function execute(Merchant $merchant, array $arguments): array
     {
-        $payment = Payment::query()
-            ->where('merchant_id', $merchant->id)
-            ->find($arguments['payment_id'] ?? null);
+        $payment = $this->findMerchantPayment($merchant, $arguments);
 
-        if (! $payment) {
-            // Same "don't distinguish doesn't-exist from not-yours" instinct as the
-            // REST API's 404s - the tool result is what the model sees, so it's what
-            // could end up (indirectly) surfaced to the merchant.
-            return ['error' => 'No payment with that id was found for this merchant.'];
+        if (is_array($payment)) {
+            return $payment;
         }
 
         return (new PaymentResource($payment))->resolve();

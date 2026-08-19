@@ -54,4 +54,34 @@ class UrlSafetyCheckerTest extends TestCase
 
         $this->assertTrue((new UrlSafetyChecker)->isSafe('http://127.0.0.1/hook'));
     }
+
+    /**
+     * resolveValidatedIp() is what DeliverMerchantWebhookJob pins the actual outbound
+     * connection to (see that job) - it must return the exact IP isSafe() validated,
+     * not just agree with isSafe() on true/false.
+     */
+    public function test_resolve_validated_ip_returns_the_ip_for_a_safe_url(): void
+    {
+        config(['webhooks.allow_private_urls' => false]);
+
+        $this->assertSame('8.8.8.8', (new UrlSafetyChecker)->resolveValidatedIp('http://8.8.8.8/hook'));
+    }
+
+    #[DataProvider('unsafeUrls')]
+    public function test_resolve_validated_ip_returns_null_for_unsafe_urls(string $url): void
+    {
+        config(['webhooks.allow_private_urls' => false]);
+
+        $this->assertNull((new UrlSafetyChecker)->resolveValidatedIp($url));
+    }
+
+    public function test_resolve_validated_ip_returns_null_when_the_escape_hatch_is_on(): void
+    {
+        // Nothing was actually validated in this mode (see the escape hatch in
+        // isSafe()) - there's no genuinely "validated" IP to pin the connection to,
+        // so the caller should fall back to normal DNS resolution instead.
+        config(['webhooks.allow_private_urls' => true]);
+
+        $this->assertNull((new UrlSafetyChecker)->resolveValidatedIp('http://127.0.0.1/hook'));
+    }
 }

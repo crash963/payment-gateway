@@ -54,10 +54,10 @@ Route::middleware('auth:merchant')->group(function () {
 
 // Stands in for an external payment processor - see FakeProviderController. No
 // "merchant" auth: this isn't a merchant-facing route at all. No dedicated rate
-// limiter either - relies only on the global 'api' group default (60/min/IP) -
-// deliberate, see storage/docs/14-rate-limiting.md: this route "would never exist in
-// a real deployment" (it's a stand-in for a real external processor), so a stricter
-// dedicated limit would just be exercise, not real protection.
+// limiter either - relies only on the global 'api' group default (300/min/IP, see
+// RouteServiceProvider) - deliberate, see storage/docs/14-rate-limiting.md: this route
+// "would never exist in a real deployment" (it's a stand-in for a real external
+// processor), so a stricter dedicated limit would just be exercise, not real protection.
 Route::post('/fake-provider/charge', [FakeProviderController::class, 'charge']);
 
 // The provider calling back into PayFlow - protected by HMAC signature, not merchant

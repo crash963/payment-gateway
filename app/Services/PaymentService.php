@@ -8,6 +8,7 @@ use App\Jobs\InitiatePaymentWithProviderJob;
 use App\Models\Merchant;
 use App\Models\Payment;
 use App\Models\PaymentEvent;
+use App\Support\DetectsUniqueConstraintViolations;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
@@ -30,6 +31,8 @@ use Illuminate\Support\Facades\DB;
  */
 class PaymentService
 {
+    use DetectsUniqueConstraintViolations;
+
     /**
      * @param  array{idempotency_key: string, order_id: string, amount: int, currency: string, return_url: ?string, callback_url: ?string}  $data
      * @return array{payment: Payment, created: bool} created=false means this was an
@@ -96,25 +99,19 @@ class PaymentService
     }
 
     /**
-     * SQLSTATE 23000 is the ANSI-standard "integrity constraint violation" code, returned
-     * identically by SQL Server, MySQL and Postgres via PDO - portable, unlike checking a
-     * driver-specific numeric error code. This table has exactly one UNIQUE constraint
-     * besides its ULID primary key (merchant_id, idempotency_key), so any 23000 here is
-     * safe to treat as that race. If a second UNIQUE constraint is ever added to
-     * `payments`, this stops being precise and would need to inspect the constraint name.
-     */
-    private function isUniqueConstraintViolation(QueryException $e): bool
-    {
-        return $e->getCode() === '23000';
-    }
-
-    /**
      * @param  array{order_id: string, amount: int, currency: string}  $data
      */
     private function resolveExisting(Payment $existing, array $data): Payment
     {
+        // (int) cast on amount only: found in code review that a client sending
+        // amount as a numeric STRING (e.g. a form-encoded body, or a JSON client that
+        // doesn't distinguish number/string) passes the 'integer' validation rule
+        // (which checks numeric shape, not PHP type) unchanged - $existing->amount is
+        // always an int via the model cast, so the old strict `===` compared int to
+        // string and misclassified a genuine replay as a conflict. order_id/currency
+        // don't need this - both sides are always strings there, no type to reconcile.
         $sameRequest = $existing->order_id === $data['order_id']
-            && $existing->amount === $data['amount']
+            && $existing->amount === (int) $data['amount']
             && $existing->currency === $data['currency'];
 
         if (! $sameRequest) {

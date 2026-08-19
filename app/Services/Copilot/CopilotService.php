@@ -32,14 +32,28 @@ class CopilotService
     }
 
     /**
-     * @param  array<int, array<string, mixed>>  $messages  prior conversation (user/assistant/tool turns) - no system message, that's added here
+     * @param  array<int, array<string, mixed>>  $messages  prior conversation - may or
+     *                                                      may not already contain a
+     *                                                      system message (see below)
      * @return array{message: ?string, conversation: array<int, array<string, mixed>>}
      */
     public function chat(Merchant $merchant, array $messages): array
     {
+        // Found in code review: the client is designed to resend the full 'conversation'
+        // this method returns (see CopilotController) - which already includes the
+        // system message THIS call added - as next turn's $messages. Unconditionally
+        // prepending another one here meant turn 2 sent 2 system messages, turn 3 sent
+        // 3, and so on, unbounded. Stripping any incoming system message first, then
+        // adding exactly one fresh one, makes this correct for both a brand new
+        // conversation (no system message yet) and a resumed one (one already present).
+        $priorMessages = array_values(array_filter(
+            $messages,
+            fn (array $message) => ($message['role'] ?? null) !== 'system'
+        ));
+
         $conversation = [
             ['role' => 'system', 'content' => $this->systemPrompt()],
-            ...$messages,
+            ...$priorMessages,
         ];
 
         $toolSchemas = $this->toolSchemas();

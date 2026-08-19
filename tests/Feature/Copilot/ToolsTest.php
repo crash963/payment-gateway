@@ -112,6 +112,23 @@ class ToolsTest extends TestCase
         $this->assertNotEmpty($result['results']);
     }
 
+    /**
+     * Regression test (code review): `! stripos($content, $query)` treated a match at
+     * position 0 (the very start of a file) as "no match", since stripos() returns int
+     * 0 there and `!0` is true. openapi.yaml's content literally starts with "openapi:
+     * 3.0.3" - searching for "openapi" matches at position 0 and used to be silently
+     * skipped, even though it's the strongest possible match.
+     */
+    public function test_search_documentation_finds_a_match_at_the_very_start_of_a_file(): void
+    {
+        $merchant = Merchant::factory()->create();
+
+        $result = (new SearchDocumentationTool)->execute($merchant, ['query' => 'openapi']);
+
+        $this->assertNotEmpty($result['results']);
+        $this->assertTrue(collect($result['results'])->contains(fn ($r) => $r['file'] === 'openapi.yaml'));
+    }
+
     public function test_search_documentation_reports_no_results_for_a_nonsense_query(): void
     {
         $merchant = Merchant::factory()->create();

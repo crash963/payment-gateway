@@ -3,10 +3,12 @@
 namespace App\Services\Copilot\Tools;
 
 use App\Models\Merchant;
-use App\Models\Payment;
+use App\Services\Copilot\Tools\Concerns\FindsMerchantPayment;
 
 class GetPaymentEventsTool implements CopilotTool
 {
+    use FindsMerchantPayment;
+
     public function name(): string
     {
         return 'getPaymentEvents';
@@ -33,12 +35,10 @@ class GetPaymentEventsTool implements CopilotTool
         // Ownership check happens by requiring the payment to belong to $merchant
         // BEFORE ever touching payment_events - there's no path here that could return
         // another merchant's event history even for a payment id that exists.
-        $payment = Payment::query()
-            ->where('merchant_id', $merchant->id)
-            ->find($arguments['payment_id'] ?? null);
+        $payment = $this->findMerchantPayment($merchant, $arguments);
 
-        if (! $payment) {
-            return ['error' => 'No payment with that id was found for this merchant.'];
+        if (is_array($payment)) {
+            return $payment;
         }
 
         return [

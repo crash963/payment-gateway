@@ -114,12 +114,30 @@ class DeliverMerchantWebhookJob implements ShouldQueue
         $rawBody = json_encode($payload);
         $signature = hash_hmac('sha256', $rawBody, $merchant->webhook_secret);
 
+        $request = Http::timeout((int) config('webhooks.delivery_timeout_seconds'))
+            ->withHeaders([
+                'Content-Type' => 'application/json',
+                'X-PayFlow-Signature' => $signature,
+            ]);
+
+        // Pin the actual TCP connection to the exact IP $urlSafety already validated,
+        // rather than letting curl re-resolve the hostname on its own a second time -
+        // see UrlSafetyChecker::resolveValidatedIp() for the DNS-rebinding gap this
+        // closes. CURLOPT_RESOLVE (not rewriting $url to the IP directly) is what makes
+        // this safe to do: the Host header and TLS SNI/certificate check still use the
+        // original hostname, only the socket connects to a pinned address. Null only
+        // when allow_private_urls bypassed validation (see that method) - nothing to
+        // pin in that case, so the request proceeds with normal DNS resolution.
+        $pinnedIp = $urlSafety->resolveValidatedIp($url);
+
+        if ($pinnedIp !== null) {
+            $host = parse_url($url, PHP_URL_HOST);
+            $port = parse_url($url, PHP_URL_PORT) ?? (parse_url($url, PHP_URL_SCHEME) === 'https' ? 443 : 80);
+            $request = $request->withOptions(['curl' => [CURLOPT_RESOLVE => ["{$host}:{$port}:{$pinnedIp}"]]]);
+        }
+
         try {
-            $response = Http::timeout((int) config('webhooks.delivery_timeout_seconds'))
-                ->withHeaders([
-                    'Content-Type' => 'application/json',
-                    'X-PayFlow-Signature' => $signature,
-                ])
+            $response = $request
                 ->withBody($rawBody, 'application/json')
                 ->post($url);
 
