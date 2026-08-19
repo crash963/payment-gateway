@@ -4,8 +4,10 @@ use App\Http\Controllers\Api\CopilotController;
 use App\Http\Controllers\Api\DemoMerchantWebhookReceiverController;
 use App\Http\Controllers\Api\FakeProviderController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PaymentEventController;
 use App\Http\Controllers\Api\ProviderWebhookController;
 use App\Http\Controllers\Api\RefundController;
+use App\Http\Controllers\Api\WebhookDeliveryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -36,6 +38,12 @@ Route::middleware('auth:merchant')->group(function () {
         Route::get('/payments/{payment}/refunds', [RefundController::class, 'index']);
         Route::post('/payments/{payment}/refunds', [RefundController::class, 'store']);
         Route::get('/refunds/{refund}', [RefundController::class, 'show']);
+
+        // Built for the payments dashboard (resources/views/dashboard.blade.php) -
+        // read-only audit trail, see those controllers for why each is its own thin
+        // single-purpose class rather than more methods bolted onto PaymentController.
+        Route::get('/payments/{payment}/events', [PaymentEventController::class, 'index']);
+        Route::get('/payments/{payment}/webhook-deliveries', [WebhookDeliveryController::class, 'index']);
     });
 
     // Own, much stricter limiter (see RouteServiceProvider) - separate from
