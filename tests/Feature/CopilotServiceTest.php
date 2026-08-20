@@ -100,6 +100,55 @@ class CopilotServiceTest extends TestCase
         $this->assertStringContainsString('Unknown tool', json_decode($toolMessage['content'], true)['error']);
     }
 
+    /**
+     * Regression test (user-reported): asked to "refund the whole payment", the model
+     * searched documentation and asked "should I proceed?" across several turns before
+     * finally admitting there's no tool for it - a confusing, trust-eroding loop for an
+     * action that was never actually possible. Fixed at the system-prompt level: the
+     * model is told its tools are the ONLY actions it can take, and to say so
+     * immediately for anything else instead of implying the action might happen.
+     */
+    public function test_the_system_prompt_tells_the_model_its_tools_are_the_only_available_actions(): void
+    {
+        Http::fake([
+            'api.openai.com/*' => Http::response($this->openAiTextResponse('ok')),
+        ]);
+
+        $merchant = Merchant::factory()->create();
+        $service = app(CopilotService::class);
+
+        $result = $service->chat($merchant, [['role' => 'user', 'content' => 'hi']]);
+
+        $systemMessage = collect($result['conversation'])->firstWhere('role', 'system');
+        $this->assertStringContainsString('ONLY actions', $systemMessage['content']);
+    }
+
+    /**
+     * Belt-and-suspenders with the system prompt fix above: even if the model ignores
+     * (or has already lost track of) the system prompt's instruction, the tool result
+     * fed back after an unsupported tool call - e.g. the model guessing at a
+     * createRefund tool that doesn't exist - steers it away from asking for
+     * confirmation right at the moment the mistake happens, not just at the start of
+     * the conversation.
+     */
+    public function test_an_unknown_tool_error_instructs_the_model_not_to_ask_for_confirmation(): void
+    {
+        $merchant = Merchant::factory()->create();
+
+        Http::fake([
+            'api.openai.com/*' => Http::sequence()
+                ->push($this->openAiToolCallResponse('createRefund', ['payment_id' => 'x']))
+                ->push($this->openAiTextResponse('ok')),
+        ]);
+
+        $service = app(CopilotService::class);
+        $result = $service->chat($merchant, [['role' => 'user', 'content' => 'refund this please']]);
+
+        $toolMessage = collect($result['conversation'])->firstWhere('role', 'tool');
+        $errorMessage = json_decode($toolMessage['content'], true)['error'];
+        $this->assertStringContainsString("isn't something you can do", $errorMessage);
+    }
+
     public function test_a_model_that_keeps_calling_tools_forever_is_bounded(): void
     {
         $merchant = Merchant::factory()->create();

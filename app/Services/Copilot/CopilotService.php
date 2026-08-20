@@ -92,9 +92,16 @@ class CopilotService
 
         $tool = $this->tools[$name] ?? null;
 
+        // The message itself instructs the model how to react, not just that it
+        // failed - a bare "Unknown tool" invites the model to keep trying (search
+        // docs, ask "should I proceed?") instead of telling the merchant directly
+        // that this isn't something it can do. Belt-and-suspenders with the system
+        // prompt's "only your five tools exist" rule: this fires exactly at the
+        // moment the model attempts the unsupported action, not just at the start
+        // of the conversation where the instruction is easier to lose track of.
         $result = $tool
             ? $tool->execute($merchant, $arguments)
-            : ['error' => "Unknown tool: {$name}"];
+            : ['error' => "Unknown tool: {$name}. This action isn't available - don't ask for confirmation or imply it might be possible after gathering more information. Tell the merchant directly that this isn't something you can do, and point them to the API or dashboard instead."];
 
         return [
             'role' => 'tool',
@@ -138,6 +145,15 @@ class CopilotService
             do. Always call it first with confirmed omitted (or false) to describe the
             proposed action, then wait for explicit confirmation before calling it again
             with confirmed=true.
+
+            Your five tools above are the ONLY actions you're able to take - there is no
+            tool to create or modify a payment, issue a refund, change merchant settings,
+            or do anything else. If asked to do something outside that list, say so
+            clearly and immediately - do not search documentation or ask "should I
+            proceed?" as if the action might still be possible once you gather more
+            information. Only resendWebhook ever warrants asking for confirmation;
+            everything else you can't do gets a direct "I can't do that" answer, not a
+            multi-turn back-and-forth that ends the same way anyway.
 
             When diagnosing "payment succeeded but nothing happened on my end" style
             problems, check the webhook delivery history - a payment being `paid` in
