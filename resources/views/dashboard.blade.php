@@ -117,6 +117,14 @@
                     <input id="orderId" type="text" placeholder="order-1234">
                 </div>
                 <div class="field">
+                    <label for="idempotencyKey">Idempotency-Key</label>
+                    <div style="display:flex; gap:6px;">
+                        <input id="idempotencyKey" type="text" style="flex:1; font-family: ui-monospace, monospace; font-size:12px;">
+                        <button type="button" id="regenIdempotencyKey" title="Vygenerovat nový klíč">↻</button>
+                    </div>
+                    <span class="muted" style="font-size:11px">Stejný klíč + stejné parametry = stejná platba (ne duplikát). Stejný klíč + jiné parametry = 409 konflikt. Klíč se needituje sám - nech ho být pro demo replay, klikni ↻ pro novou platbu.</span>
+                </div>
+                <div class="field">
                     <label for="scenario">Scénář (fake provider)</label>
                     <select id="scenario">
                         <option value="">Úspěch</option>
@@ -181,6 +189,13 @@
             <h3>Refundy</h3>
             <ul class="timeline" id="refundsList"></ul>
             <form id="refundForm" hidden>
+                <div class="field">
+                    <label for="refundIdempotencyKey">Idempotency-Key</label>
+                    <div style="display:flex; gap:6px;">
+                        <input id="refundIdempotencyKey" type="text" style="flex:1; font-family: ui-monospace, monospace; font-size:12px;">
+                        <button type="button" id="regenRefundIdempotencyKey" title="Vygenerovat nový klíč">↻</button>
+                    </div>
+                </div>
                 <div class="row">
                     <div class="field">
                         <label for="refundAmount">Částka k vrácení (haléře)</label>
@@ -351,6 +366,25 @@ function renderDetail(payment, events, deliveries, refunds) {
 
 const createSubmitBtn = document.getElementById('createSubmitBtn');
 const refundSubmitBtn = document.getElementById('refundSubmitBtn');
+const idempotencyKeyInput = document.getElementById('idempotencyKey');
+const refundIdempotencyKeyInput = document.getElementById('refundIdempotencyKey');
+
+// Real clients generate/manage this key themselves (often tied to their own order
+// id, reused on retry) - a human never types it during a real checkout. But this is
+// a TESTING tool, and the single most important thing to be able to demo live is
+// idempotent replay: same key + same params -> same payment back, same key +
+// different params -> 409. So unlike a real integration, the key is a visible,
+// editable field here - prefilled with a fresh one so the common "just click"
+// case needs zero typing, but left untouched after a successful submit (not
+// auto-regenerated) so clicking "Založit platbu" again immediately re-sends the
+// same key on purpose, if that's what you want to demonstrate.
+function regenerateKey(input) {
+    input.value = crypto.randomUUID();
+}
+regenerateKey(idempotencyKeyInput);
+regenerateKey(refundIdempotencyKeyInput);
+document.getElementById('regenIdempotencyKey').addEventListener('click', () => regenerateKey(idempotencyKeyInput));
+document.getElementById('regenRefundIdempotencyKey').addEventListener('click', () => regenerateKey(refundIdempotencyKeyInput));
 
 createForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -362,19 +396,20 @@ createForm.addEventListener('submit', async (e) => {
     const currency = document.getElementById('currency').value.trim() || 'CZK';
     const returnUrl = document.getElementById('returnUrl').value.trim();
     const callbackUrl = document.getElementById('callbackUrl').value.trim();
+    const idempotencyKey = idempotencyKeyInput.value.trim() || crypto.randomUUID();
 
-    // Disabled for the duration of the request - a fresh Idempotency-Key is generated
-    // per submission (see below), so a double-click/double-submit isn't deduped by the
-    // server and would otherwise create two distinct payments.
+    // Guards against an accidental double-click/double-submit while a request is in
+    // flight - a DIFFERENT concern from the idempotency key above. That key protects a
+    // deliberate retry with the SAME key; this protects against firing two requests
+    // (each possibly with different in-flight field values) before the first even
+    // returns.
     createSubmitBtn.disabled = true;
     try {
         const body = { order_id: prefix + baseOrderId, amount, currency };
         if (returnUrl) body.return_url = returnUrl;
         if (callbackUrl) body.callback_url = callbackUrl;
 
-        // A real client generates this itself too - not something a human should have
-        // to think about per submission, so it's never a form field.
-        const { data } = await api('POST', '/payments', body, { 'Idempotency-Key': crypto.randomUUID() });
+        const { data } = await api('POST', '/payments', body, { 'Idempotency-Key': idempotencyKey });
 
         document.getElementById('orderId').value = '';
         await refreshPayments();
@@ -391,12 +426,13 @@ refundForm.addEventListener('submit', async (e) => {
     refundError.textContent = '';
     const paymentId = refundForm.dataset.paymentId;
     const amount = parseInt(document.getElementById('refundAmount').value, 10);
+    const idempotencyKey = refundIdempotencyKeyInput.value.trim() || crypto.randomUUID();
 
-    // Same double-submit guard as createForm above, same reason: a fresh
-    // Idempotency-Key per click means the server won't dedupe a double-click.
+    // Same double-submit guard as createForm above - a different concern from the
+    // idempotency key, which is left as-is after submit on purpose (see above).
     refundSubmitBtn.disabled = true;
     try {
-        await api('POST', `/payments/${paymentId}/refunds`, { amount }, { 'Idempotency-Key': crypto.randomUUID() });
+        await api('POST', `/payments/${paymentId}/refunds`, { amount }, { 'Idempotency-Key': idempotencyKey });
         document.getElementById('refundAmount').value = '';
         loadDetail(paymentId);
     } catch (e) {

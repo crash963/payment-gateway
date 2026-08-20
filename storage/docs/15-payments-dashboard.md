@@ -37,6 +37,29 @@ merchanta. Otestováno explicitně (`WebhookDeliveriesTest::test_deliveries_for_
 (human-in-the-loop `resendWebhook` tool) - dashboard tuhle write akci záměrně
 neduplikuje, jen na ni odkazuje.
 
+## Idempotency-Key je viditelné, editovatelné pole - ne skrytý detail
+
+**Dodatek:** V reálné integraci nikdy nevyplňuje `Idempotency-Key` člověk do
+formuláře - generuje ho e-shopův backend (často odvozený od interní objednávky,
+znovu-použitý při retry). Dashboard ale původně šel ještě dál - generoval čerstvý
+náhodný klíč při KAŽDÉM kliknutí, bez možnosti ho vidět nebo ovlivnit. Důsledek:
+nešlo živě předvést nejdůležitější vlastnost idempotence - že stejný klíč +
+stejné parametry vrátí tu samou platbu (200, ne 201, žádná duplicita), a stejný
+klíč + jiné parametry vrátí `409 conflict`. Pro API dokumentaci to je detail
+implementace klienta; pro TESTOVACÍ nástroj, co má tuhle vlastnost demonstrovat,
+to je zásadní mezera.
+
+**Oprava:** pole `Idempotency-Key` je teď viditelné a editovatelné, předvyplněné
+čerstvým UUID (běžné "jen klikni" použití nevyžaduje žádné psaní navíc). Po
+úspěšném odeslání se **automaticky neregeneruje** - zůstává v poli, takže druhé
+kliknutí na "Založit platbu" beze změny pole záměrně pošle stejný klíč znovu
+(demo replay). Tlačítko ↻ vygeneruje nový klíč, když je záměrem založit
+samostatnou platbu. Stejné pole (a stejná logika) přidáno i k refund formuláři.
+
+Ochrana proti dvojkliku (disabled tlačítko během requestu, z code review) řeší
+jiný problém - souběžné odeslání dvou requestů, každý případně s jinak
+rozepsaným stavem polí, ne záměrné opakování se stejným klíčem.
+
 ## Scénáře fake provideru přímo ve formuláři
 
 `ProviderScenario::fromOrderId()` čte "magickou" předponu `order_id`
